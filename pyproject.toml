@@ -5,3 +5,8 @@ version = "0.1.0"
 dependencies = [
     "jax",
 ]
+
+[tool.coverage.report]
+exclude_also = [
+    "raise NotImplementedError",
+]

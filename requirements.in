@@ -3,3 +3,4 @@ black
 jaxlib
 pip-tools
 pytest
+pytest-cov
