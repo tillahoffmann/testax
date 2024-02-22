@@ -6,7 +6,21 @@ dependencies = [
     "jax",
 ]
 
+# https://coverage.readthedocs.io/en/latest/config.html
+[tool.coverage.run]
+source = [
+    "testax",
+]
+
 [tool.coverage.report]
 exclude_also = [
     "raise NotImplementedError",
 ]
+fail_under = 100
+show_missing = true
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+addopts = "--cov -v"
