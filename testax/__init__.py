@@ -1,10 +1,14 @@
 import enum
-import functools
+from numpy.testing import build_err_msg
 from jax import numpy as jnp
 from jax._src import checkify
 from jaxlib.xla_client import Traceback
-import numpy as np
 from typing import Callable, Iterable
+
+__all__ = [
+    "assert_array_compare",
+    "assert_allclose",
+]
 
 
 class TestaxErrorReason(enum.Enum):
@@ -30,6 +34,7 @@ class TestaxError(checkify.JaxException):
         self,
         x: jnp.ndarray,
         y: jnp.ndarray,
+        pass_: jnp.ndarray,
         reason: TestaxErrorReason,
         *,
         traceback_info: Traceback,
@@ -42,6 +47,7 @@ class TestaxError(checkify.JaxException):
         super().__init__(traceback_info)
         self.x = x
         self.y = y
+        self.pass_ = pass_
         self.reason = reason
         self.err_msg = err_msg
         self.verbose = verbose
@@ -51,7 +57,7 @@ class TestaxError(checkify.JaxException):
         # keyword arguments.
 
     def tree_flatten(self):
-        children = (self.x, self.y, self.reason.value)
+        children = (self.x, self.y, self.pass_, self.reason.value)
         aux_data = {
             "traceback_info": self.traceback_info,
             "err_msg": self.err_msg,
@@ -63,15 +69,71 @@ class TestaxError(checkify.JaxException):
 
     @classmethod
     def tree_unflatten(cls, aux_data, children):
-        x, y, reason = children
-        return cls(x, y, TestaxErrorReason(reason), **aux_data)
+        x, y, pass_, reason = children
+        return cls(x, y, pass_, TestaxErrorReason(reason), **aux_data)
 
     def __str__(self):
-        return str(self.reason)
+        import numpy as np
+
+        np.testing.assert_array_compare
+        has_val_by_reason = {
+            TestaxErrorReason.NAN_MISMATCH: "nan",
+            TestaxErrorReason.POSINF_MISMATCH: "+inf",
+            TestaxErrorReason.NEGINF_MISMATCH: "-inf",
+        }
+        has_val = has_val_by_reason.get(self.reason)
+        if has_val:
+            return build_err_msg(
+                [self.x, self.y],
+                self.err_msg + f"\nx and y {has_val} location mismatch:",
+                verbose=self.verbose,
+                header=self.header,
+                names=("x", "y"),
+                precision=self.precision,
+            )
+
+        n_mismatch = self.pass_.size - self.pass_.sum()
+        n_elements = self.pass_.size
+        percent_mismatch = 100 * n_mismatch / n_elements
+        remarks = [
+            "Mismatched elements: {} / {} ({:.3g}%)".format(
+                n_mismatch, n_elements, percent_mismatch
+            )
+        ]
+
+        error = jnp.abs(self.x - self.y)
+        if jnp.issubdtype(self.x.dtype, jnp.unsignedinteger):
+            error2 = abs(self.y - self.x)
+            error = jnp.minimum(error, error2)
+        max_abs_error = jnp.max(error)
+        remarks.append(f"Max absolute difference: {max_abs_error}")
+
+        # note: this definition of relative error matches that one
+        # used by assert_allclose (found in np.isclose)
+        # Filter values where the divisor would be zero
+        nonzero = self.y != 0
+        if jnp.all(~nonzero):
+            max_rel_error = float("inf")
+        else:
+            if nonzero.ndim > 0:
+                max_rel_error = jnp.max(error[nonzero] / jnp.abs(self.y[nonzero]))
+            else:
+                max_rel_error = error / jnp.abs(self.y)
+        remarks.append(f"Max relative difference: {max_rel_error}")
+
+        err_msg = self.err_msg + "\n" + "\n".join(remarks)
+        return build_err_msg(
+            [self.x, self.y],
+            err_msg,
+            verbose=self.verbose,
+            header=self.header,
+            names=("x", "y"),
+            precision=self.precision,
+        )
 
     def get_effect_type(self):
         values: Iterable[jnp.ndarray] = checkify.jtu.tree_leaves(
-            (self.x, self.y, self.reason.value)
+            (self.x, self.y, self.pass_, self.reason.value)
         )
         return checkify.ErrorEffect(
             TestaxError,
@@ -100,7 +162,7 @@ def _assert_predicate_same_pos(
     """
     cond_x = predicate(x)
     cond_y = predicate(y)
-    TestaxError.check((cond_x == cond_y).all(), x, y, reason, **kwargs)
+    TestaxError.check((cond_x == cond_y).all(), x, y, None, reason, **kwargs)
     return cond_x & cond_y
 
 
@@ -129,6 +191,9 @@ def assert_array_compare(
         "debug": debug,
     }
 
+    x = jnp.asarray(x)
+    y = jnp.asarray(y)
+
     # Check shapes and data types match.
     if strict:
         pass_ = x.shape == y.shape and x.dtype == y.dtype
@@ -139,6 +204,7 @@ def assert_array_compare(
             raise TestaxError(
                 x,
                 y,
+                None,
                 TestaxErrorReason.SHAPE_MISMATCH,
                 traceback_info=checkify.get_traceback(),
                 **kwargs,
@@ -147,6 +213,7 @@ def assert_array_compare(
             raise TestaxError(
                 x,
                 y,
+                None,
                 TestaxErrorReason.DTYPE_MISMATCH,
                 traceback_info=checkify.get_traceback(),
                 **kwargs,
@@ -164,7 +231,7 @@ def assert_array_compare(
         pass_ = pass_ | _assert_predicate_same_pos(
             x, y, TestaxErrorReason.NEGINF_MISMATCH, lambda z: z == -jnp.inf, **kwargs
         )
-    TestaxError.check(pass_.all(), x, y, TestaxErrorReason.COMPARISON, **kwargs)
+    TestaxError.check(pass_.all(), x, y, pass_, TestaxErrorReason.COMPARISON, **kwargs)
 
 
 def assert_allclose(
@@ -211,9 +278,18 @@ def assert_allclose(
         >>> y = jnp.arccos(jnp.cos(x))
         >>> testax.assert_allclose(x, y, rtol=1e-5, atol=0)
     """
+
+    def comparison(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+        # We need to cast to an inexact dtype to get the same behavior as numpy due to
+        # https://github.com/google/jax/issues/19935.
+        from jax._src.numpy.util import promote_args_inexact
+
+        x, y = promote_args_inexact("isclose", x, y)
+        return jnp.isclose(x, y, rtol=rtol, atol=atol, equal_nan=equal_nan)
+
     header = f"Not equal to tolerance rtol={rtol:g}, atol={atol:g}"
     assert_array_compare(
-        lambda x, y: jnp.isclose(x, y, rtol, atol, equal_nan=equal_nan),
+        comparison,
         actual,
         desired,
         err_msg=err_msg,
