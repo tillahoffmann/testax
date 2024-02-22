@@ -1,0 +1,5 @@
+-e file:.
+black
+jaxlib
+pip-tools
+pytest

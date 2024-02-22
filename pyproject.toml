@@ -1,0 +1,7 @@
+[project]
+
+name = "testax"
+version = "0.1.0"
+dependencies = [
+    "jax",
+]
