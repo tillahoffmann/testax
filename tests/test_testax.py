@@ -1,4 +1,5 @@
 from functools import partial
+import inspect
 import jax
 from jax import numpy as jnp
 from jax.experimental import checkify
@@ -120,3 +121,33 @@ def test_assert_xyz(configuration: Configuration) -> None:
 
     assert testax_ex.exconly()
     assert numpy_ex.exconly()
+
+
+@pytest.mark.parametrize(
+    "name", [name for name in np.testing.__all__ if name.startswith("assert_")]
+)
+def test_feature_parity(name: str) -> None:
+    # Get the functions.
+    testax_func = getattr(testax, name, None)
+    if testax_func is None:
+        pytest.xfail(f"testax does not yet implement `{name}`")
+    numpy_func = getattr(np.testing, name)
+
+    # Compare the signature.
+    testax_signature = inspect.signature(testax_func)
+    numpy_signature = inspect.signature(numpy_func)
+
+    # Check that the parameter names are the same and appear in the same order (except
+    # the debug flag).
+    testax_parameter_names = list(testax_signature.parameters)
+    assert testax_parameter_names.pop() == "debug"
+    assert testax_parameter_names == list(numpy_signature.parameters)
+    # Check that position and keyword status match.
+    for name, numpy_parameter in numpy_signature.parameters.items():
+        testax_parameter = testax_signature.parameters[name]
+        assert numpy_parameter.kind == testax_parameter.kind, name
+        assert numpy_parameter.default == testax_parameter.default, name
+    # Check that the testax implementation has type annotations.
+    for name, parameter in testax_signature.parameters.items():
+        assert parameter.annotation != inspect._empty, name
+    assert testax_signature.return_annotation is None

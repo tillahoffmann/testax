@@ -104,7 +104,6 @@ def _assert_predicate_same_pos(
     return cond_x & cond_y
 
 
-@functools.wraps(np.testing.assert_array_compare)
 def assert_array_compare(
     comparison: Callable[..., jnp.ndarray],
     x: jnp.ndarray,
@@ -169,7 +168,15 @@ def assert_array_compare(
 
 
 def assert_allclose(
-    actual, desired, rtol=1e-7, atol=0, equal_nan=True, err_msg="", verbose=True
+    actual: jnp.ndarray,
+    desired: jnp.ndarray,
+    rtol: float = 1e-7,
+    atol: float = 0,
+    equal_nan: bool = True,
+    err_msg: str = "",
+    verbose: bool = True,
+    *,
+    debug: bool = False,
 ) -> None:
     """
     Raises an AssertionError if two objects are not equal up to desired tolerance.
@@ -213,4 +220,5 @@ def assert_allclose(
         verbose=verbose,
         header=header,
         equal_nan=equal_nan,
+        debug=debug,
     )
