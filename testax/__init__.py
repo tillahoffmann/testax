@@ -67,7 +67,7 @@ class TestaxError(checkify.JaxException):
         return cls(x, y, TestaxErrorReason(reason), **aux_data)
 
     def __str__(self):
-        raise NotImplementedError
+        return str(self.reason)
 
     def get_effect_type(self):
         values: Iterable[jnp.ndarray] = checkify.jtu.tree_leaves(
