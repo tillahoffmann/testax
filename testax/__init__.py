@@ -166,3 +166,51 @@ def assert_array_compare(
             x, y, TestaxErrorReason.NEGINF_MISMATCH, lambda z: z == -jnp.inf, **kwargs
         )
     TestaxError.check(pass_.all(), x, y, TestaxErrorReason.COMPARISON, **kwargs)
+
+
+def assert_allclose(
+    actual, desired, rtol=1e-7, atol=0, equal_nan=True, err_msg="", verbose=True
+) -> None:
+    """
+    Raises an AssertionError if two objects are not equal up to desired tolerance.
+
+    Given two arrays, check that their shapes and all elements are equal (but see the
+    Notes for the special handling of a scalar). An exception is raised if the shapes
+    mismatch or any values conflict. In contrast to the standard usage in numpy, NaNs
+    are compared like numbers, no assertion is raised if both objects have NaNs in the
+    same positions.
+
+    Args:
+        actual: Array obtained.
+        desired: Array desired.
+        rtol: Relative tolerance.
+        atol: Absolute tolerance.
+        equal_nan: If True, NaNs will compare equal.
+        err_msg: The error message to be printed in case of failure.
+        verbose: If True, the conflicting values are appended to the error message.
+
+    Raises:
+        TestaxError: If actual and desired are not equal up to specified precision.
+
+    Notes:
+
+        When one of :code:`actual` and :code:`desired` is a scalar and the other is an
+        array, the function checks that each element of the array is equal to the
+        scalar.
+
+    Examples:
+
+        >>> x = jnp.asarray([1e-5, 1e-3, 1e-1])
+        >>> y = jnp.arccos(jnp.cos(x))
+        >>> testax.assert_allclose(x, y, rtol=1e-5, atol=0)
+    """
+    header = f"Not equal to tolerance rtol={rtol:g}, atol={atol:g}"
+    assert_array_compare(
+        lambda x, y: jnp.isclose(x, y, rtol, atol, equal_nan=equal_nan),
+        actual,
+        desired,
+        err_msg=err_msg,
+        verbose=verbose,
+        header=header,
+        equal_nan=equal_nan,
+    )
