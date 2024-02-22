@@ -120,3 +120,13 @@ def test_assert_xyz(configuration: Configuration) -> None:
 
     assert testax_ex.exconly()
     assert numpy_ex.exconly()
+
+
+def test_nan_mismatch() -> None:
+    with pytest.raises(checkify.JaxRuntimeError):
+        testax.assert_allclose(jnp.zeros(1), jnp.nan * jnp.zeros(1))
+
+
+def test_rel_err_zero():
+    with pytest.raises(checkify.JaxRuntimeError):
+        testax.assert_allclose(jnp.ones(1), jnp.zeros(1))

@@ -1,14 +1,49 @@
+import contextlib
 import inspect
 from jax.experimental import checkify
 import numpy as np
 from numpy.testing.tests import test_utils
 import testax
 import pytest
-from unittest import mock
+import unittest
+
+
+@contextlib.contextmanager
+def _patched_assertRaises():
+    original = unittest.TestCase.assertRaises
+
+    def _patched(self, expected, *args, **kwargs):
+        if expected is AssertionError:
+            expected = (AssertionError, checkify.JaxRuntimeError, testax.TestaxError)
+        return original(self, expected, *args, **kwargs)
+
+    unittest.TestCase.assertRaises = _patched
+    yield
+    unittest.TestCase.assertRaises = original
+
+
+@contextlib.contextmanager
+def _patched_pytest_raises():
+    original = pytest.raises
+
+    def _patched(expected, *args, **kwargs):
+        if expected is AssertionError:
+            expected = (AssertionError, checkify.JaxRuntimeError, testax.TestaxError)
+        return original(expected, *args, **kwargs)
+
+    pytest.raises = _patched
+    yield
+    pytest.raises = original
 
 
 def patch_numpy_test(cls, xfail=None):
     xfail = xfail or {}
+    # Get all the testax methods we can patch.
+    testax_funcs = {
+        name: getattr(testax, name)
+        for name in testax.__all__
+        if name.startswith("assert_")
+    }
 
     # Iterate over the test methods and patch the globals.
     test_methods = inspect.getmembers(
@@ -23,24 +58,20 @@ def patch_numpy_test(cls, xfail=None):
         # method=method argument takes care of the closure so method doesnt reference
         # the last element in the iteration.
         def _patched_method(*args, method=method, **kwargs):
-            # Get all the testax methods we can patch.
-            testax_funcs = {
-                name: getattr(testax, name)
-                for name in testax.__all__
-                if name.startswith("assert_")
+            original_funcs = {
+                key: method.__globals__.pop(key)
+                for key in list(method.__globals__)
+                if key.startswith("assert_")
+                and not key in {"assert_raises", "assert_", "assert_equal"}
             }
-            # We need to patch the globals referencing test function names and the base
-            # classes of the JaxRuntimeError so it looks like an AssertionError to the
-            # numpy tests. We do the __bases__ patching manually, because mock.patch
-            # tries to delete the __bases__ attribute. Using is_local doesn't seem to
-            # fix the problem (https://stackoverflow.com/a/12220965/1150961).
-            with mock.patch.dict(method.__globals__, testax_funcs):
-                original_bases = checkify.JaxRuntimeError.__bases__
-                try:
-                    checkify.JaxRuntimeError.__bases__ = (AssertionError,)
+            try:
+                method.__globals__.update(testax_funcs)
+                with _patched_assertRaises(), _patched_pytest_raises():
                     method(*args, **kwargs)
-                finally:
-                    checkify.JaxRuntimeError.__bases__ = original_bases
+            finally:
+                for key in testax_funcs:
+                    method.__globals__.pop(key)
+                method.__globals__.update(original_funcs)
 
         setattr(cls, name, _patched_method)
     return cls
