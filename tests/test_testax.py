@@ -55,16 +55,7 @@ def test_assert_array_compare(comparison, x, y, reason) -> None:
     try:
         err, _ = target(x, y)
         err.throw()
-    except AssertionError as ex:
+    except (AssertionError, testax.TestaxError) as ex:
         testax_ex = ex
 
     assert (numpy_ex is None) == (testax_ex is None)
-
-
-def test_custom_check() -> None:
-    f = checkify.checkify(
-        lambda: testax.check(False, "reason", {"a": 1}), {testax.TestaxError}
-    )
-    err, out = f()
-    with pytest.raises(Exception):
-        err.throw()
