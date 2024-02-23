@@ -121,8 +121,8 @@ class TestaxError(checkify.JaxException):
         if jnp.issubdtype(self.x.dtype, jnp.unsignedinteger):
             error2 = abs(self.y - self.x)
             error = jnp.minimum(error, error2)
-        max_abs_error = jnp.max(error)
-        remarks.append(f"Max absolute difference: {max_abs_error}")
+        max_abs_error = jnp.nanmax(error)
+        remarks.append(f"Max absolute difference: {max_abs_error:.{self.precision}g}")
 
         # note: this definition of relative error matches that one
         # used by assert_allclose (found in jnp.isclose)
@@ -132,10 +132,10 @@ class TestaxError(checkify.JaxException):
             max_rel_error = float("inf")
         else:
             if nonzero.ndim > 0:
-                max_rel_error = jnp.max(error[nonzero] / jnp.abs(self.y[nonzero]))
+                max_rel_error = jnp.nanmax(error[nonzero] / jnp.abs(self.y[nonzero]))
             else:
-                max_rel_error = error / jnp.abs(self.y)
-        remarks.append(f"Max relative difference: {max_rel_error}")
+                max_rel_error = jnp.nanmax(error / jnp.abs(self.y))
+        remarks.append(f"Max relative difference: {max_rel_error:.{self.precision}g}")
 
         err_msg = self.err_msg + "\n" + "\n".join(remarks)
         return build_err_msg(
@@ -381,8 +381,8 @@ def assert_array_equal(
         Arrays are not equal
         <BLANKLINE>
         Mismatched elements: 1 / 3 (33.3%)
-        Max absolute difference: nan
-        Max relative difference: nan
+        Max absolute difference: 1e-05
+        Max relative difference: 0
          x: Array([1.e+00, 1.e-05,    nan], dtype=float32)
          y: Array([ 1.,  0., nan], dtype=float32)
 
@@ -493,8 +493,8 @@ def assert_array_almost_equal(
         Arrays are not almost equal to 5 decimals
         <BLANKLINE>
         Mismatched elements: 1 / 3 (33.3%)
-        Max absolute difference: nan
-        Max relative difference: nan
+        Max absolute difference: 6.0081e-05
+        Max relative difference: 2.5749e-05
          x: Array([1.     , 2.33333,     nan], dtype=float32)
          y: Array([1.     , 2.33339,     nan], dtype=float32)
 
@@ -569,8 +569,8 @@ def assert_array_less(
         Arrays are not less-ordered
         <BLANKLINE>
         Mismatched elements: 1 / 3 (33.3%)
-        Max absolute difference: nan
-        Max relative difference: nan
+        Max absolute difference: 1
+        Max relative difference: 0.5
          x: Array([ 1.,  1., nan], dtype=float32)
          y: Array([ 1.,  2., nan], dtype=float32)
 
@@ -581,8 +581,8 @@ def assert_array_less(
         Arrays are not less-ordered
         <BLANKLINE>
         Mismatched elements: 1 / 2 (50%)
-        Max absolute difference: 2.0
-        Max relative difference: [0.6666667  0.33333334]
+        Max absolute difference: 2
+        Max relative difference: 0.666667
          x: Array([1., 4.], dtype=float32)
          y: Array(3, dtype=int32, weak_type=True)
 
