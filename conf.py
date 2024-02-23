@@ -1,3 +1,6 @@
+import doctest
+
+
 project = "testax"
 html_theme = "sphinx_book_theme"
 extensions = [
@@ -18,3 +21,4 @@ doctest_global_setup = """
 from jax import numpy as jnp
 import testax
 """
+doctest_default_flags = doctest.ELLIPSIS | doctest.DONT_ACCEPT_TRUE_FOR_1 | doctest.NORMALIZE_WHITESPACE
