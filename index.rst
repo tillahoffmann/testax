@@ -1,0 +1,5 @@
+testax
+======
+
+.. automodule:: testax
+    :members:
