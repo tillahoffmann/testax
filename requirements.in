@@ -4,3 +4,5 @@ jaxlib
 pip-tools
 pytest
 pytest-cov
+sphinx
+sphinx-book-theme
