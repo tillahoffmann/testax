@@ -121,8 +121,8 @@ class TestaxError(checkify.JaxException):
         if jnp.issubdtype(self.x.dtype, jnp.unsignedinteger):
             error2 = abs(self.y - self.x)
             error = jnp.minimum(error, error2)
-        max_abs_error = jnp.max(error)
-        remarks.append(f"Max absolute difference: {max_abs_error}")
+        max_abs_error = jnp.nanmax(error)
+        remarks.append(f"Max absolute difference: {max_abs_error:.{self.precision}g}")
 
         # note: this definition of relative error matches that one
         # used by assert_allclose (found in jnp.isclose)
@@ -132,10 +132,10 @@ class TestaxError(checkify.JaxException):
             max_rel_error = float("inf")
         else:
             if nonzero.ndim > 0:
-                max_rel_error = jnp.max(error[nonzero] / jnp.abs(self.y[nonzero]))
+                max_rel_error = jnp.nanmax(error[nonzero] / jnp.abs(self.y[nonzero]))
             else:
-                max_rel_error = error / jnp.abs(self.y)
-        remarks.append(f"Max relative difference: {max_rel_error}")
+                max_rel_error = jnp.nanmax(error / jnp.abs(self.y))
+        remarks.append(f"Max relative difference: {max_rel_error:.{self.precision}g}")
 
         err_msg = self.err_msg + "\n" + "\n".join(remarks)
         return build_err_msg(
@@ -377,14 +377,14 @@ def assert_array_equal(
         ...                           [1, jnp.arccos(jnp.cos(1e-5)), jnp.nan])
         Traceback (most recent call last):
             ...
-        JaxRuntimeError:
+        jax._src.checkify.JaxRuntimeError:
         Arrays are not equal
         <BLANKLINE>
         Mismatched elements: 1 / 3 (33.3%)
-        Max absolute difference: nan
-        Max relative difference: nan
-        x: Array([1.e+00, 1.e-05,    nan], dtype=float32)
-        y: Array([ 1.,  0., nan], dtype=float32)
+        Max absolute difference: 1e-05
+        Max relative difference: 0
+         x: Array([1.e+00, 1.e-05,    nan], dtype=float32)
+         y: Array([ 1.,  0., nan], dtype=float32)
 
         Use :func:`assert_allclose` or one of the nulp (number of floating point values)
         functions for these cases instead:
@@ -404,13 +404,13 @@ def assert_array_equal(
         >>> testax.assert_array_equal(x, 3, strict=True)
         Traceback (most recent call last):
             ...
-        TestaxError:
+        testax.TestaxError:
         Arrays are not equal
         <BLANKLINE>
         (shapes (2, 5), () mismatch)
-        x: Array([[3, 3, 3, 3, 3],
-            [3, 3, 3, 3, 3]], dtype=int32, weak_type=True)
-        y: Array(3, dtype=int32, weak_type=True)
+         x: Array([[3, 3, 3, 3, 3],
+                   [3, 3, 3, 3, 3]], dtype=int32, weak_type=True)
+         y: Array(3, dtype=int32, weak_type=True)
 
         The :code:`strict` parameter also ensures that the array data types match:
 
@@ -419,12 +419,12 @@ def assert_array_equal(
         >>> testax.assert_array_equal(x, y, strict=True)
         Traceback (most recent call last):
             ...
-        TestaxError:
+        testax.TestaxError:
         Arrays are not equal
         <BLANKLINE>
         (dtypes int32, float32 mismatch)
-        x: Array([2, 2, 2], dtype=int32)
-        y: Array([2., 2., 2.], dtype=float32)
+         x: Array([2, 2, 2], dtype=int32)
+         y: Array([2., 2., 2.], dtype=float32)
     """
     assert_array_compare(
         operator.__eq__,
@@ -482,32 +482,32 @@ def assert_array_almost_equal(
 
         The first assert does not raise an exception
 
-        >>> testax.assert_array_almost_equal([1.0,2.333,jnp.nan],
-        ...                                      [1.0,2.333,jnp.nan])
+        >>> testax.assert_array_almost_equal([1.0, 2.333, jnp.nan],
+        ...                                  [1.0, 2.333, jnp.nan])
 
-        >>> testax.assert_array_almost_equal([1.0,2.33333,jnp.nan],
-        ...                                      [1.0,2.33339,jnp.nan], decimal=5)
+        >>> testax.assert_array_almost_equal([1.0, 2.33333, jnp.nan],
+        ...                                  [1.0, 2.33339, jnp.nan], decimal=5)
         Traceback (most recent call last):
             ...
-        JaxRuntimeError:
+        jax._src.checkify.JaxRuntimeError:
         Arrays are not almost equal to 5 decimals
         <BLANKLINE>
         Mismatched elements: 1 / 3 (33.3%)
-        Max absolute difference: nan
-        Max relative difference: nan
-        x: Array([1.     , 2.33333,     nan], dtype=float32)
-        y: Array([1.     , 2.33339,     nan], dtype=float32)
+        Max absolute difference: 6.0081e-05
+        Max relative difference: 2.5749e-05
+         x: Array([1.     , 2.33333,     nan], dtype=float32)
+         y: Array([1.     , 2.33339,     nan], dtype=float32)
 
         >>> testax.assert_array_almost_equal([1.0,2.33333,jnp.nan],
         ...                                      [1.0,2.33333, 5], decimal=5)
         Traceback (most recent call last):
             ...
-        JaxRuntimeError:
+        jax._src.checkify.JaxRuntimeError:
         Arrays are not almost equal to 5 decimals
         <BLANKLINE>
         x and y nan location mismatch:
-        x: Array([1.     , 2.33333,     nan], dtype=float32)
-        y: Array([1.     , 2.33333, 5.     ], dtype=float32)
+         x: Array([1.     , 2.33333,     nan], dtype=float32)
+         y: Array([1.     , 2.33333, 5.     ], dtype=float32)
     """
     from jax._src.numpy.util import promote_args_inexact
 
@@ -565,36 +565,36 @@ def assert_array_less(
         >>> testax.assert_array_less([1.0, 1.0, jnp.nan], [1, 2.0, jnp.nan])
         Traceback (most recent call last):
             ...
-        JaxRuntimeError:
+        jax._src.checkify.JaxRuntimeError:
         Arrays are not less-ordered
         <BLANKLINE>
         Mismatched elements: 1 / 3 (33.3%)
-        Max absolute difference: nan
-        Max relative difference: nan
-        x: Array([ 1.,  1., nan], dtype=float32)
-        y: Array([ 1.,  2., nan], dtype=float32)
+        Max absolute difference: 1
+        Max relative difference: 0.5
+         x: Array([ 1.,  1., nan], dtype=float32)
+         y: Array([ 1.,  2., nan], dtype=float32)
 
         >>> testax.assert_array_less([1.0, 4.0], 3)
         Traceback (most recent call last):
             ...
-        JaxRuntimeError:
+        jax._src.checkify.JaxRuntimeError:
         Arrays are not less-ordered
         <BLANKLINE>
         Mismatched elements: 1 / 2 (50%)
-        Max absolute difference: 2.0
-        Max relative difference: [0.6666667  0.33333334]
-        x: Array([1., 4.], dtype=float32)
-        y: Array(3, dtype=int32, weak_type=True)
+        Max absolute difference: 2
+        Max relative difference: 0.666667
+         x: Array([1., 4.], dtype=float32)
+         y: Array(3, dtype=int32, weak_type=True)
 
         >>> testax.assert_array_less([1.0, 2.0, 3.0], [4])
         Traceback (most recent call last):
             ...
-        TestaxError:
+        testax.TestaxError:
         Arrays are not less-ordered
         <BLANKLINE>
         (shapes (3,), (1,) mismatch)
-        x: Array([1., 2., 3.], dtype=float32)
-        y: Array([4], dtype=int32)
+         x: Array([1., 2., 3.], dtype=float32)
+         y: Array([4], dtype=int32)
     """
     assert_array_compare(
         operator.__lt__,
