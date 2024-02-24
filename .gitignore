@@ -1,5 +1,7 @@
 __pycache__
 .coverage
+.pypirc
 .vscode
 *.egg-info
+dist
 docs/_build
