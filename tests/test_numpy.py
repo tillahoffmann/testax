@@ -36,7 +36,7 @@ def _patched_pytest_raises():
     pytest.raises = original
 
 
-def patch_numpy_test(cls, xfail=None):
+def patch_numpy_test(cls, xfail=None, assert_func=None):
     xfail = xfail or {}
     # Get all the testax methods we can patch.
     testax_funcs = {
@@ -44,6 +44,14 @@ def patch_numpy_test(cls, xfail=None):
         for name in testax.__all__
         if name.startswith("assert_")
     }
+
+    # Patch the assert function if we have one.
+    if assert_func:
+
+        def _set_assert_func(self):
+            self._assert_func = assert_func
+
+        cls.setup_method = _set_assert_func
 
     # Iterate over the test methods and patch the globals.
     test_methods = inspect.getmembers(
@@ -82,6 +90,31 @@ TestAssertAllclose = patch_numpy_test(
     xfail={
         "test_timedelta": "Only arrays of numeric types are supported by JAX.",
     },
+)
+TestArrayAssertLess = patch_numpy_test(
+    test_utils.TestArrayAssertLess,
+    assert_func=testax.assert_array_less,
+)
+TestArrayAlmostEqual = patch_numpy_test(
+    test_utils.TestArrayAlmostEqual,
+    xfail={
+        "test_subclass": "numpy masked arrays are not supported as JAX inputs",
+        "test_objarray": "arrays of objects are not supported by JAX",
+    },
+    assert_func=testax.assert_array_almost_equal,
+)
+TestArrayEqual = patch_numpy_test(
+    test_utils.TestArrayEqual,
+    xfail={
+        "test_recarrays": "record arrays are not supported as JAX inputs",
+        "test_string_arrays": "string arrays are not supported as JAX inputs",
+        "test_masked_nan_inf": "numpy masked arrays are not supported as JAX inputs",
+        "test_objarray": "arrays of objects are not supported as JAX inputs",
+        "test_generic_rank1": "sub used as test on boolean dtype is not supported",
+        "test_generic_rank3": "sub used as test on boolean dtype is not supported",
+        "test_0_ndim_array": "integer overflow represented by object type",
+    },
+    assert_func=testax.assert_array_equal,
 )
 
 

@@ -5,6 +5,7 @@ version = "0.1.0"
 dependencies = [
     "jax",
 ]
+readme = "README.md"
 
 # https://coverage.readthedocs.io/en/latest/config.html
 [tool.coverage.run]

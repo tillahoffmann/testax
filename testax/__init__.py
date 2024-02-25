@@ -1,18 +1,23 @@
 import enum
 from numpy.testing import build_err_msg
 from jax import numpy as jnp
-from jax._src import checkify
+from jax._src import checkify as checkify_
 from jaxlib.xla_client import Traceback
 import operator
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Optional, Tuple, Type, TypeVar
 
 __all__ = [
     "assert_allclose",
     "assert_array_almost_equal",
-    "assert_array_equal",
     "assert_array_compare",
+    "assert_array_equal",
     "assert_array_less",
+    "checkify",
 ]
+
+
+ErrorCategory = Type[checkify_.JaxException]
+Out = TypeVar("Out")
 
 
 class TestaxErrorReason(enum.Enum):
@@ -29,7 +34,7 @@ class TestaxErrorReason(enum.Enum):
     COMPARISON = jnp.asarray(6)
 
 
-class TestaxError(checkify.JaxException):
+class TestaxError(checkify_.JaxException):
     """
     Raised when a *testax* assertion fails.
     """
@@ -148,21 +153,21 @@ class TestaxError(checkify.JaxException):
         )
 
     def get_effect_type(self):
-        values: Iterable[jnp.ndarray] = checkify.jtu.tree_leaves(
+        values: Iterable[jnp.ndarray] = checkify_.jtu.tree_leaves(
             (self.x, self.y, self.pass_, self.reason.value)
         )
-        return checkify.ErrorEffect(
+        return checkify_.ErrorEffect(
             TestaxError,
-            tuple(checkify.api.ShapeDtypeStruct(x.shape, x.dtype) for x in values),
+            tuple(checkify_.api.ShapeDtypeStruct(x.shape, x.dtype) for x in values),
         )
 
     @classmethod
     def check(cls, predicate: bool, *args, debug: bool = False, **kwargs) -> None:
-        new_error = cls(*args, traceback_info=checkify.get_traceback(), **kwargs)
-        error = checkify.assert_func(
-            checkify.init_error, jnp.logical_not(predicate), new_error
+        new_error = cls(*args, traceback_info=checkify_.get_traceback(), **kwargs)
+        error = checkify_.assert_func(
+            checkify_.init_error, jnp.logical_not(predicate), new_error
         )
-        checkify._check_error(error, debug=debug)
+        checkify_._check_error(error, debug=debug)
 
 
 def _assert_predicate_same_pos(
@@ -222,7 +227,7 @@ def assert_array_compare(
                 y,
                 None,
                 TestaxErrorReason.SHAPE_MISMATCH,
-                traceback_info=checkify.get_traceback(),
+                traceback_info=checkify_.get_traceback(),
                 **kwargs,
             )
         else:
@@ -231,7 +236,7 @@ def assert_array_compare(
                 y,
                 None,
                 TestaxErrorReason.DTYPE_MISMATCH,
-                traceback_info=checkify.get_traceback(),
+                traceback_info=checkify_.get_traceback(),
                 **kwargs,
             )
 
@@ -606,3 +611,55 @@ def assert_array_less(
         equal_inf=False,
         debug=debug,
     )
+
+
+def checkify(
+    func: Callable[..., Out],
+    errors: Optional[frozenset[ErrorCategory]] = None,
+) -> Callable[..., Tuple[checkify_.Error, Out]]:
+    """
+    Functionalize :code:`testax` assertions and :code:`check` calls in :code:`func`, and
+    optionally add run-time error checks. This function has the same behavior as
+    :func:`jax.experimental.checkify.check` except it ensures :code:`testax` errors
+    are handled properly. See the :func:`jax.experimental.checkify.check` documentation
+    for details.
+
+    Args:
+        func: Callable which can contain :code:`testax` assertions and user checks
+            (see :func:`jax.experimental.checkify.check`).
+        errors: A set of ErrorCategory values which defines the set of enabled
+            checks. By default :code:`testax` assertions and explicit
+            :func:`jax.experimental.checkify.check`\ s are enabled.
+
+    Returns:
+        A function which accepts the same arguments as :code:`func` and returns as
+        output a tuple where the first element is an
+        :class:`jax.experimental.checkify.Error` value, representing the first failed
+        :code:`testax` assertion or :func:`jax.experimental.checkify.check`, and the
+        second element is the original output of :code:`func`.
+
+    Examples:
+        >>> import jax
+        >>> import jax.numpy as jnp
+        >>> import testax
+        >>>
+        >>> @jax.jit
+        ... def f(x):
+        ...     testax.assert_array_less(0, x)
+        ...     return jnp.log(x)
+        >>>
+        >>> err, out = testax.checkify(f)(jnp.arange(2))
+        >>> err.throw()
+        Traceback (most recent call last):
+            ...
+        jax._src.checkify.JaxRuntimeError:
+        Arrays are not less-ordered
+        <BLANKLINE>
+        Mismatched elements: 1 / 2 (50%)
+        Max absolute difference: 1
+        Max relative difference: 1
+         x: Array(0, dtype=int32, weak_type=True)
+         y: Array([0, 1], dtype=int32)
+    """
+    errors = (errors or checkify_.user_checks) | {TestaxError}
+    return checkify_.checkify(func, errors)
