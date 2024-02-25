@@ -97,7 +97,7 @@ CONFIGURATIONS = [
 def test_assert_xyz(configuration: Configuration) -> None:
     kwargs = configuration.kwargs or {}
 
-    @partial(checkify.checkify, errors=(testax.TestaxError,))
+    @testax.checkify
     def target(x, y):
         configuration.testax_func(x, y, **kwargs)
 

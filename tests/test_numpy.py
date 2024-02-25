@@ -47,6 +47,7 @@ def patch_numpy_test(cls, xfail=None, assert_func=None):
 
     # Patch the assert function if we have one.
     if assert_func:
+
         def _set_assert_func(self):
             self._assert_func = assert_func
 
