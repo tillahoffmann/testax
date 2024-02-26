@@ -15,9 +15,7 @@ __all__ = [
     "checkify",
 ]
 
-
-ErrorCategory = Type[checkify_.JaxException]
-Out = TypeVar("Out")
+T = TypeVar("T")
 
 
 class TestaxErrorReason(enum.Enum):
@@ -614,21 +612,21 @@ def assert_array_less(
 
 
 def checkify(
-    func: Callable[..., Out],
-    errors: Optional[frozenset[ErrorCategory]] = None,
-) -> Callable[..., Tuple[checkify_.Error, Out]]:
+    func: Callable[..., T],
+    errors: Optional[frozenset[Type[checkify_.JaxException]]] = None,
+) -> Callable[..., Tuple[checkify_.Error, T]]:
     """
-    Functionalize :code:`testax` assertions and :code:`check` calls in :code:`func`, and
-    optionally add run-time error checks. This function has the same behavior as
-    :func:`jax.experimental.checkify.check` except it ensures :code:`testax` errors
-    are handled properly. See the :func:`jax.experimental.checkify.check` documentation
-    for details.
+    Functionalize :code:`testax` assertions and :func:`jax.experimental.checkify.check`
+    calls in :code:`func`, and optionally adds run-time error checks. This function has
+    the same behavior as :func:`jax.experimental.checkify.checkify` except it ensures
+    :code:`testax` errors are handled properly. See the
+    :func:`jax.experimental.checkify.checkify` documentation for details.
 
     Args:
         func: Callable which can contain :code:`testax` assertions and user checks
-            (see :func:`jax.experimental.checkify.check`).
-        errors: A set of ErrorCategory values which defines the set of enabled
-            checks. By default :code:`testax` assertions and explicit
+            (see :func:`jax.experimental.checkify.check` for details).
+        errors: A set of exception types which defines the set of enabled checks. By
+            default :code:`testax` assertions and explicit
             :func:`jax.experimental.checkify.check`\ s are enabled.
 
     Returns:
