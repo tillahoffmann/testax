@@ -5,7 +5,8 @@ version = "0.1.0"
 dependencies = [
     "jax",
 ]
-readme = "README.md"
+readme = "README.rst"
+description = "Jit-able runtime assertions for jax in numpy style."
 
 # https://coverage.readthedocs.io/en/latest/config.html
 [tool.coverage.run]
